@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alerta de cronometro</title>
+    <style>
+      :root {
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        color: #fff9ef;
+        background: radial-gradient(circle at 15% 20%, #c44141 0%, #3d0f0f 55%, #120707 100%);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .alarm-shell {
+        width: min(92%, 420px);
+        border: 1px solid rgba(255, 234, 198, 0.2);
+        border-radius: 20px;
+        background: rgba(22, 8, 8, 0.62);
+        backdrop-filter: blur(5px);
+        padding: 22px;
+        box-shadow: 0 26px 40px rgba(0, 0, 0, 0.4);
+      }
+
+      .chip {
+        display: inline-flex;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(255, 232, 158, 0.16);
+        color: #ffe89e;
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 14px 0 0;
+        font-size: 1.7rem;
+        line-height: 1.1;
+      }
+
+      p {
+        margin: 12px 0 0;
+        color: #ffd7cd;
+        line-height: 1.5;
+        font-size: 1.02rem;
+      }
+
+      .actions {
+        margin-top: 20px;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      button {
+        border: none;
+        border-radius: 999px;
+        background: #ffe89e;
+        color: #331111;
+        padding: 12px 18px;
+        font-weight: 700;
+        font-size: 0.95rem;
+        cursor: pointer;
+      }
+
+      button:hover {
+        filter: brightness(1.05);
+      }
+
+      button:active {
+        transform: translateY(1px);
+      }
+    </style>
+  </head>
+  <body>
+    <section class="alarm-shell">
+      <span class="chip">Alarme ativo</span>
+      <h1 id="alarm-title">Cronometro finalizado</h1>
+      <p id="alarm-body">O tempo configurado acabou.</p>
+      <div class="actions">
+        <button id="stop-alarm-button" type="button">Parar alarme</button>
+      </div>
+    </section>
+
+    <script>
+      const params = new URLSearchParams(window.location.search)
+      const title = params.get('title') || 'Cronometro finalizado'
+      const body = params.get('body') || 'O tempo configurado acabou.'
+
+      const titleElement = document.getElementById('alarm-title')
+      const bodyElement = document.getElementById('alarm-body')
+      const stopButton = document.getElementById('stop-alarm-button')
+
+      if (titleElement) {
+        titleElement.textContent = title
+      }
+
+      if (bodyElement) {
+        bodyElement.textContent = body
+      }
+
+      if (stopButton) {
+        stopButton.addEventListener('click', () => {
+          window.alarm.stop()
+        })
+      }
+
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' || event.key === 'Enter') {
+          event.preventDefault()
+          window.alarm.stop()
+        }
+      })
+    </script>
+  </body>
+</html>
