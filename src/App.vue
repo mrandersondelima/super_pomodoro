@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useTheme } from 'vuetify'
+import { setAppLocale, type SupportedLocale } from './i18n'
 
 type TimerStep = {
   id: number
@@ -9,24 +11,34 @@ type TimerStep = {
   alertMessage: string
 }
 
+type LocaleOption = {
+  value: SupportedLocale
+  label: string
+}
+
 const STORAGE_KEY = 'super-pomodoro-timers'
 const SETTINGS_STORAGE_KEY = 'super-pomodoro-settings'
 const THEME_STORAGE_KEY = 'super-pomodoro-theme'
 
-const defaultTimers: TimerStep[] = [
-  {
-    id: 1,
-    title: 'Ficar sentado',
-    minutes: 40,
-    alertMessage: 'Tempo de ficar sentado acabou.',
+const { t, locale } = useI18n()
+
+const languageOptions = computed<LocaleOption[]>(() => [
+  { value: 'pt-BR', label: t('locale.ptBR') },
+  { value: 'en', label: t('locale.en') },
+  { value: 'de', label: t('locale.de') },
+  { value: 'fr', label: t('locale.fr') },
+  { value: 'it', label: t('locale.it') },
+  { value: 'es', label: t('locale.es') },
+  { value: 'ru', label: t('locale.ru') },
+  { value: 'zh', label: t('locale.zh') },
+])
+
+const selectedLanguage = computed<SupportedLocale>({
+  get: () => locale.value as SupportedLocale,
+  set: (nextLocale) => {
+    setAppLocale(nextLocale)
   },
-  {
-    id: 2,
-    title: 'Ficar em pé',
-    minutes: 15,
-    alertMessage: 'Tempo de ficar em pé acabou.',
-  },
-]
+})
 
 const timers = ref<TimerStep[]>(loadStoredTimers())
 
@@ -168,7 +180,7 @@ function addTimer() {
       id: editingTimerId.value,
       title,
       minutes,
-      alertMessage: alertMessage || `Tempo de ${title.toLowerCase()} acabou.`,
+      alertMessage: alertMessage || t('timer.defaultAlert', { title }),
     })
     resetForm()
     return
@@ -178,7 +190,7 @@ function addTimer() {
     id: nextId.value,
     title,
     minutes,
-    alertMessage: alertMessage || `Tempo de ${title.toLowerCase()} acabou.`,
+    alertMessage: alertMessage || t('timer.defaultAlert', { title }),
   })
 
   nextId.value += 1
@@ -416,7 +428,7 @@ function formatSeconds(totalSeconds: number) {
 }
 
 function loadStoredTimers() {
-  const fallbackTimers = defaultTimers.map((timer) => ({ ...timer }))
+  const fallbackTimers = getDefaultTimers()
 
   try {
     const rawValue = window.localStorage.getItem(STORAGE_KEY)
@@ -440,6 +452,23 @@ function loadStoredTimers() {
   catch {
     return fallbackTimers
   }
+}
+
+function getDefaultTimers() {
+  return [
+    {
+      id: 1,
+      title: t('timer.defaultSittingTitle'),
+      minutes: 40,
+      alertMessage: t('timer.defaultSittingAlert'),
+    },
+    {
+      id: 2,
+      title: t('timer.defaultStandingTitle'),
+      minutes: 15,
+      alertMessage: t('timer.defaultStandingAlert'),
+    },
+  ]
 }
 
 function saveTimers(nextTimers: TimerStep[]) {
@@ -586,7 +615,18 @@ function playInAppBeep() {
         <section class="hero-panel">
           <div class="hero-copy">
             <div class="theme-toggle">
-              <span>{{ isDarkMode ? 'Modo noturno ativo' : 'Modo claro ativo' }}</span>
+              <span>{{ isDarkMode ? t('theme.darkActive') : t('theme.lightActive') }}</span>
+              <v-select
+                v-model="selectedLanguage"
+                :items="languageOptions"
+                item-title="label"
+                item-value="value"
+                :label="t('locale.label')"
+                variant="outlined"
+                density="compact"
+                hide-details
+                style="max-width: 220px"
+              />
               <v-btn
                 :icon="isDarkMode ? 'mdi-weather-night' : 'mdi-weather-sunny'"
                 variant="text"
@@ -594,27 +634,27 @@ function playInAppBeep() {
                 @click="toggleTheme"
               />
             </div>
-            <p class="eyebrow">Sequência automática de pausas</p>
-            <h1>Monte uma fila de cronômetros para alternar entre sentado e em pé.</h1>
+            <p class="eyebrow">{{ t('hero.eyebrow') }}</p>
+            <h1>{{ t('hero.title') }}</h1>
             <p class="hero-text">
-              Cada etapa inicia sozinha assim que a anterior termina. O alerta aparece no Windows no exato momento da troca.
+              {{ t('hero.text') }}
             </p>
           </div>
 
           <v-card class="timer-card" rounded="xl" elevation="0">
             <div class="timer-card__status">
               <span class="status-pill" :class="{ 'status-pill--active': isRunning }">
-                {{ isRunning ? 'Em execução' : hasFinished ? 'Sequência concluída' : 'Pronto para iniciar' }}
+                {{ isRunning ? t('status.running') : hasFinished ? t('status.finished') : t('status.ready') }}
               </span>
-              <span>{{ completedCount }}/{{ totalTimers }} etapas concluídas</span>
+              <span>{{ t('status.completedCount', { completed: completedCount, total: totalTimers }) }}</span>
             </div>
 
             <div class="timer-card__body">
               <div>
-                <p class="timer-label">Etapa atual</p>
-                <h2>{{ currentTimer?.title ?? 'Adicione um cronômetro' }}</h2>
+                <p class="timer-label">{{ t('timer.currentStep') }}</p>
+                <h2>{{ currentTimer?.title ?? t('timer.addTimerPrompt') }}</h2>
                 <p class="timer-message">
-                  {{ currentTimer?.alertMessage ?? 'Quando a etapa terminar, o app dispara um alerta e passa para a próxima.' }}
+                  {{ currentTimer?.alertMessage ?? t('timer.nextStepHint') }}
                 </p>
               </div>
 
@@ -631,10 +671,10 @@ function playInAppBeep() {
 
             <div class="timer-actions">
               <v-btn color="primary" size="large" rounded="pill" @click="startSequence">
-                Iniciar
+                {{ t('buttons.start') }}
               </v-btn>
               <v-btn variant="tonal" size="large" rounded="pill" @click="pauseSequence">
-                Pausar
+                {{ t('buttons.pause') }}
               </v-btn>
               <v-btn
                 variant="tonal"
@@ -643,10 +683,10 @@ function playInAppBeep() {
                 :disabled="!timers.length || isCompletingTimer"
                 @click="skipCurrentTimer"
               >
-                Pular
+                {{ t('buttons.skip') }}
               </v-btn>
               <v-btn variant="outlined" size="large" rounded="pill" @click="resetSequence">
-                Reiniciar
+                {{ t('buttons.reset') }}
               </v-btn>
             </div>
 
@@ -656,7 +696,7 @@ function playInAppBeep() {
               density="comfortable"
               hide-details
               inset
-              label="Executar a fila em loop"
+              :label="t('settings.loop')"
               :disabled="isRunning"
             />
           </v-card>
@@ -666,16 +706,16 @@ function playInAppBeep() {
           <v-card class="panel" rounded="xl" elevation="0">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">{{ editingTimerId !== null ? 'Editar cronômetro' : 'Novo cronômetro' }}</p>
-                <h3>{{ editingTimerId !== null ? 'Atualizar etapa' : 'Adicionar etapa' }}</h3>
+                <p class="eyebrow">{{ editingTimerId !== null ? t('form.editTimer') : t('form.newTimer') }}</p>
+                <h3>{{ editingTimerId !== null ? t('form.updateStep') : t('form.addStep') }}</h3>
               </div>
-              <span class="panel-meta">Total: {{ totalDurationMinutes }} min</span>
+              <span class="panel-meta">{{ t('form.total', { minutes: totalDurationMinutes }) }}</span>
             </div>
 
             <div class="form-grid">
               <v-text-field
                 v-model="newTitle"
-                label="Título"
+                :label="t('form.titleLabel')"
                 variant="outlined"
                 density="comfortable"
                 hide-details
@@ -683,7 +723,7 @@ function playInAppBeep() {
               />
               <v-text-field
                 v-model.number="newMinutes"
-                label="Minutos"
+                :label="t('form.minutesLabel')"
                 type="number"
                 min="1"
                 variant="outlined"
@@ -693,7 +733,7 @@ function playInAppBeep() {
               />
               <v-text-field
                 v-model="newAlertMessage"
-                label="Mensagem do alerta"
+                :label="t('form.alertMessageLabel')"
                 variant="outlined"
                 density="comfortable"
                 hide-details
@@ -710,7 +750,7 @@ function playInAppBeep() {
               :disabled="isRunning || !newTitle.trim() || Number(newMinutes) < 1"
               @click="addTimer"
             >
-              {{ editingTimerId !== null ? 'Salvar alterações' : 'Incluir na sequência' }}
+              {{ editingTimerId !== null ? t('buttons.saveChanges') : t('buttons.includeInSequence') }}
             </v-btn>
 
             <v-btn
@@ -722,17 +762,17 @@ function playInAppBeep() {
               :disabled="isRunning"
               @click="resetForm"
             >
-              Cancelar edição
+              {{ t('buttons.cancelEdit') }}
             </v-btn>
           </v-card>
 
           <v-card class="panel" rounded="xl" elevation="0">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Fila programada</p>
-                <h3>Ordem dos cronômetros</h3>
+                <p class="eyebrow">{{ t('queue.title') }}</p>
+                <h3>{{ t('queue.orderTitle') }}</h3>
               </div>
-              <span class="panel-meta">Progresso geral {{ Math.round(queueProgress) }}%</span>
+              <span class="panel-meta">{{ t('queue.progress', { progress: Math.round(queueProgress) }) }}</span>
             </div>
 
             <v-progress-linear
@@ -756,8 +796,8 @@ function playInAppBeep() {
               >
                 <div class="queue-item__main">
                   <div>
-                    <p class="queue-item__index">Etapa {{ index + 1 }}</p>
-                    <p v-if="timer.id === editingTimerId" class="queue-item__editing-label">Em edição</p>
+                    <p class="queue-item__index">{{ t('queue.stepNumber', { index: index + 1 }) }}</p>
+                    <p v-if="timer.id === editingTimerId" class="queue-item__editing-label">{{ t('queue.editing') }}</p>
                     <h4>{{ timer.title }}</h4>
                     <p>{{ timer.alertMessage }}</p>
                   </div>
@@ -801,21 +841,21 @@ function playInAppBeep() {
               v-else
               variant="tonal"
               color="primary"
-              text="Nenhum cronômetro cadastrado. Adicione a primeira etapa ao lado."
+              :text="t('queue.empty')"
             />
           </v-card>
         </section>
 
         <v-dialog v-model="inAppAlarmVisible" persistent width="460">
           <v-card rounded="xl" class="alarm-dialog">
-            <v-card-title class="alarm-dialog__title">Alarme ativo</v-card-title>
+            <v-card-title class="alarm-dialog__title">{{ t('alarm.active') }}</v-card-title>
             <v-card-text>
               <h4>{{ inAppAlarmTitle }}</h4>
               <p>{{ inAppAlarmBody }}</p>
             </v-card-text>
             <v-card-actions class="alarm-dialog__actions">
               <v-btn color="secondary" rounded="pill" size="large" @click="stopInAppAlarm">
-                Parar alarme
+                {{ t('buttons.stopAlarm') }}
               </v-btn>
             </v-card-actions>
           </v-card>
