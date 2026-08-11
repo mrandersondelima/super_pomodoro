@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Alerta de cronometro</title>
+    <title>Alerta de cronômetro</title>
     <style>
       :root {
         font-family: 'Segoe UI', Tahoma, sans-serif;
@@ -87,16 +87,16 @@
   <body>
     <section class="alarm-shell">
       <span class="chip">Alarme ativo</span>
-      <h1 id="alarm-title">Cronometro finalizado</h1>
+      <h1 id="alarm-title">Cronômetro finalizado</h1>
       <p id="alarm-body">O tempo configurado acabou.</p>
       <div class="actions">
-        <button id="stop-alarm-button" type="button">Parar alarme</button>
+        <button id="stop-alarm-button" type="button">Parar som</button>
       </div>
     </section>
 
     <script>
       const params = new URLSearchParams(window.location.search)
-      const title = params.get('title') || 'Cronometro finalizado'
+      const title = params.get('title') || 'Cronômetro finalizado'
       const body = params.get('body') || 'O tempo configurado acabou.'
 
       const titleElement = document.getElementById('alarm-title')

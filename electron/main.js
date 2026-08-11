@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, Notification, ipcMain, shell } from 'electron'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -11,6 +11,7 @@ const alarmPreloadPath = join(__dirname, 'alarm-preload.js')
 
 let mainWindow = null
 let activeAlarmSession = null
+const ALARM_SOUND_DURATION_MS = 10_000
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -43,12 +44,13 @@ function createWindow() {
 
 app.whenReady().then(() => {
   ipcMain.handle('show-notification', async (_event, payload) => {
+    showWindowsNotification(payload)
     await showControlledAlarm(payload)
     return true
   })
 
   ipcMain.on('alarm-stop', () => {
-    stopControlledAlarm()
+    stopControlledAlarmSound()
   })
 
   createWindow()
@@ -61,7 +63,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  stopControlledAlarm()
+  disposeControlledAlarm()
 
   if (process.platform !== 'darwin') {
     app.quit()
@@ -69,7 +71,7 @@ app.on('window-all-closed', () => {
 })
 
 async function showControlledAlarm(payload) {
-  stopControlledAlarm()
+  disposeControlledAlarm()
 
   const alarmWindow = new BrowserWindow({
     width: 460,
@@ -94,9 +96,14 @@ async function showControlledAlarm(payload) {
     shell.beep()
   }, 900)
 
+  const stopTimeoutId = setTimeout(() => {
+    stopControlledAlarmSound()
+  }, ALARM_SOUND_DURATION_MS)
+
   activeAlarmSession = {
     window: alarmWindow,
     beepIntervalId,
+    stopTimeoutId,
   }
 
   const fileLoadPromise = alarmWindow.loadFile(alarmHtmlPath, {
@@ -113,15 +120,11 @@ async function showControlledAlarm(payload) {
     activeAlarmSession.window.focus()
   }
 
-  await new Promise((resolve) => {
-    alarmWindow.once('closed', () => {
-      if (activeAlarmSession?.window === alarmWindow) {
-        clearInterval(activeAlarmSession.beepIntervalId)
-        activeAlarmSession = null
-      }
-
-      resolve(true)
-    })
+  alarmWindow.on('closed', () => {
+    if (activeAlarmSession?.window === alarmWindow) {
+      clearAlarmTimers(activeAlarmSession)
+      activeAlarmSession = null
+    }
   })
 }
 
@@ -130,11 +133,49 @@ function stopControlledAlarm() {
     return
   }
 
-  clearInterval(activeAlarmSession.beepIntervalId)
+  clearAlarmTimers(activeAlarmSession)
+}
 
-  if (activeAlarmSession.window && !activeAlarmSession.window.isDestroyed()) {
-    activeAlarmSession.window.close()
+function stopControlledAlarmSound() {
+  if (!activeAlarmSession) {
+    return
+  }
+
+  clearAlarmTimers(activeAlarmSession)
+}
+
+function disposeControlledAlarm() {
+  if (!activeAlarmSession) {
+    return
+  }
+
+  const alarmWindow = activeAlarmSession.window
+  clearAlarmTimers(activeAlarmSession)
+
+  if (alarmWindow && !alarmWindow.isDestroyed()) {
+    alarmWindow.close()
   }
 
   activeAlarmSession = null
+}
+
+function clearAlarmTimers(session) {
+  clearInterval(session.beepIntervalId)
+  clearTimeout(session.stopTimeoutId)
+
+  session.beepIntervalId = undefined
+  session.stopTimeoutId = undefined
+}
+
+function showWindowsNotification(payload) {
+  if (!Notification.isSupported()) {
+    return
+  }
+
+  const nativeNotification = new Notification({
+    title: payload.title ?? 'Cronometro finalizado',
+    body: payload.body ?? 'O tempo configurado acabou.',
+  })
+
+  nativeNotification.show()
 }

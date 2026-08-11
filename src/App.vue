@@ -22,9 +22,9 @@ const defaultTimers: TimerStep[] = [
   },
   {
     id: 2,
-    title: 'Ficar em pe',
+    title: 'Ficar em pé',
     minutes: 15,
-    alertMessage: 'Tempo de ficar em pe acabou.',
+    alertMessage: 'Tempo de ficar em pé acabou.',
   },
 ]
 
@@ -50,7 +50,10 @@ const isDarkMode = ref(loadThemePreference())
 
 let inAppAlarmResolve: (() => void) | null = null
 let inAppAlarmIntervalId: number | undefined
+let inAppAlarmTimeoutId: number | undefined
 let isCompletingTimer = false
+
+const IN_APP_ALARM_SOUND_DURATION_MS = 10_000
 
 let intervalId: number | undefined
 
@@ -123,7 +126,8 @@ watch(
 
 onBeforeUnmount(() => {
   stopInterval()
-  stopInAppAlarm()
+  stopInAppAlarmSound()
+  inAppAlarmVisible.value = false
 })
 
 function loadThemePreference() {
@@ -382,17 +386,27 @@ async function completeCurrentTimer() {
 }
 
 async function notify(title: string, body: string) {
-  if (window.desktop?.showNotification) {
-    try {
-      await window.desktop.showNotification({ title, body })
-      return
-    }
-    catch {
-      // Usa alarme interno caso a ponte desktop falhe.
-    }
+  await showWindowsAlert(title, body)
+  await showInAppAlarm(title, body)
+}
+
+async function showWindowsAlert(title: string, body: string) {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return
   }
 
-  await showInAppAlarm(title, body)
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body })
+    return
+  }
+
+  if (Notification.permission === 'default') {
+    const permission = await Notification.requestPermission()
+
+    if (permission === 'granted') {
+      new Notification(title, { body })
+    }
+  }
 }
 
 function formatSeconds(totalSeconds: number) {
@@ -483,7 +497,7 @@ function getNextId(existingTimers: TimerStep[]) {
 }
 
 function showInAppAlarm(title: string, body: string) {
-  stopInAppAlarm()
+  stopInAppAlarmSound()
 
   inAppAlarmTitle.value = title
   inAppAlarmBody.value = body
@@ -496,14 +510,11 @@ function showInAppAlarm(title: string, body: string) {
 }
 
 function stopInAppAlarm() {
-  if (inAppAlarmIntervalId !== undefined) {
-    window.clearInterval(inAppAlarmIntervalId)
-    inAppAlarmIntervalId = undefined
-  }
+  stopInAppAlarmSound()
+  inAppAlarmVisible.value = false
 
   const resolver = inAppAlarmResolve
   inAppAlarmResolve = null
-  inAppAlarmVisible.value = false
 
   if (resolver) {
     resolver()
@@ -512,9 +523,29 @@ function stopInAppAlarm() {
 
 function startInAppAlarmLoop() {
   playInAppBeep()
+  if (inAppAlarmTimeoutId !== undefined) {
+    window.clearTimeout(inAppAlarmTimeoutId)
+  }
+
   inAppAlarmIntervalId = window.setInterval(() => {
     playInAppBeep()
   }, 900)
+
+  inAppAlarmTimeoutId = window.setTimeout(() => {
+    stopInAppAlarmSound()
+  }, IN_APP_ALARM_SOUND_DURATION_MS)
+}
+
+function stopInAppAlarmSound() {
+  if (inAppAlarmIntervalId !== undefined) {
+    window.clearInterval(inAppAlarmIntervalId)
+    inAppAlarmIntervalId = undefined
+  }
+
+  if (inAppAlarmTimeoutId !== undefined) {
+    window.clearTimeout(inAppAlarmTimeoutId)
+    inAppAlarmTimeoutId = undefined
+  }
 }
 
 function playInAppBeep() {
@@ -563,8 +594,8 @@ function playInAppBeep() {
                 @click="toggleTheme"
               />
             </div>
-            <p class="eyebrow">Sequencia automatica de pausas</p>
-            <h1>Monte uma fila de cronometros para alternar entre sentado e em pe.</h1>
+            <p class="eyebrow">Sequência automática de pausas</p>
+            <h1>Monte uma fila de cronômetros para alternar entre sentado e em pé.</h1>
             <p class="hero-text">
               Cada etapa inicia sozinha assim que a anterior termina. O alerta aparece no Windows no exato momento da troca.
             </p>
@@ -573,17 +604,17 @@ function playInAppBeep() {
           <v-card class="timer-card" rounded="xl" elevation="0">
             <div class="timer-card__status">
               <span class="status-pill" :class="{ 'status-pill--active': isRunning }">
-                {{ isRunning ? 'Em execucao' : hasFinished ? 'Sequencia concluida' : 'Pronto para iniciar' }}
+                {{ isRunning ? 'Em execução' : hasFinished ? 'Sequência concluída' : 'Pronto para iniciar' }}
               </span>
-              <span>{{ completedCount }}/{{ totalTimers }} etapas concluidas</span>
+              <span>{{ completedCount }}/{{ totalTimers }} etapas concluídas</span>
             </div>
 
             <div class="timer-card__body">
               <div>
                 <p class="timer-label">Etapa atual</p>
-                <h2>{{ currentTimer?.title ?? 'Adicione um cronometro' }}</h2>
+                <h2>{{ currentTimer?.title ?? 'Adicione um cronômetro' }}</h2>
                 <p class="timer-message">
-                  {{ currentTimer?.alertMessage ?? 'Quando a etapa terminar, o app dispara um alerta e passa para a proxima.' }}
+                  {{ currentTimer?.alertMessage ?? 'Quando a etapa terminar, o app dispara um alerta e passa para a próxima.' }}
                 </p>
               </div>
 
@@ -635,7 +666,7 @@ function playInAppBeep() {
           <v-card class="panel" rounded="xl" elevation="0">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">{{ editingTimerId !== null ? 'Editar cronometro' : 'Novo cronometro' }}</p>
+                <p class="eyebrow">{{ editingTimerId !== null ? 'Editar cronômetro' : 'Novo cronômetro' }}</p>
                 <h3>{{ editingTimerId !== null ? 'Atualizar etapa' : 'Adicionar etapa' }}</h3>
               </div>
               <span class="panel-meta">Total: {{ totalDurationMinutes }} min</span>
@@ -644,7 +675,7 @@ function playInAppBeep() {
             <div class="form-grid">
               <v-text-field
                 v-model="newTitle"
-                label="Titulo"
+                label="Título"
                 variant="outlined"
                 density="comfortable"
                 hide-details
@@ -679,7 +710,7 @@ function playInAppBeep() {
               :disabled="isRunning || !newTitle.trim() || Number(newMinutes) < 1"
               @click="addTimer"
             >
-              {{ editingTimerId !== null ? 'Salvar alteracoes' : 'Incluir na sequencia' }}
+              {{ editingTimerId !== null ? 'Salvar alterações' : 'Incluir na sequência' }}
             </v-btn>
 
             <v-btn
@@ -691,7 +722,7 @@ function playInAppBeep() {
               :disabled="isRunning"
               @click="resetForm"
             >
-              Cancelar edicao
+              Cancelar edição
             </v-btn>
           </v-card>
 
@@ -699,7 +730,7 @@ function playInAppBeep() {
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Fila programada</p>
-                <h3>Ordem dos cronometros</h3>
+                <h3>Ordem dos cronômetros</h3>
               </div>
               <span class="panel-meta">Progresso geral {{ Math.round(queueProgress) }}%</span>
             </div>
@@ -726,7 +757,7 @@ function playInAppBeep() {
                 <div class="queue-item__main">
                   <div>
                     <p class="queue-item__index">Etapa {{ index + 1 }}</p>
-                    <p v-if="timer.id === editingTimerId" class="queue-item__editing-label">Em edicao</p>
+                    <p v-if="timer.id === editingTimerId" class="queue-item__editing-label">Em edição</p>
                     <h4>{{ timer.title }}</h4>
                     <p>{{ timer.alertMessage }}</p>
                   </div>
@@ -770,7 +801,7 @@ function playInAppBeep() {
               v-else
               variant="tonal"
               color="primary"
-              text="Nenhum cronometro cadastrado. Adicione a primeira etapa ao lado."
+              text="Nenhum cronômetro cadastrado. Adicione a primeira etapa ao lado."
             />
           </v-card>
         </section>
